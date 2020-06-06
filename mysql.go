@@ -1,4 +1,4 @@
-package mysql
+package gomysql
 
 import (
 	_ "github.com/go-sql-driver/mysql"
@@ -17,15 +17,43 @@ func NewDB() *Database{
 	return db
 }
 
-func (d *Database) Connect(username string,pwd string,host string,port int,database string) error{
+func (d *Database) Connect(database string) error{
 	var err error
 	d.Mutex.Lock()
 	defer d.Mutex.Unlock()
-	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8", username, pwd, host, port, database)
+	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8", USER, PWD, HOST, PORT, database)
 	d.DB, err = sql.Open("mysql", dbDSN)
 	if err != nil {
         fmt.Println("MYSQL CONNECT: " + dbDSN)
         return err
+	}
+	err = d.DB.Ping()
+	if err != nil{
+        fmt.Println("MYSQL Ping error")
+        return err		
+	}
+	return nil
+}
+
+func (d *Database) Create(table string,values []string) error{
+	d.Mutex.Lock()
+	defer d.Mutex.Unlock()
+	if len(table) == 0{
+		return fmt.Errorf("table name is none")
+	}
+	if len(values) == 0{
+		return fmt.Errorf("values is none")
+	}
+	var value_str string
+	for _,value := range values{
+		value_str += (value + ",")
+	}
+	value_str = value_str[:len(value_str)-1]
+	cmd := "create table " + table + "(" + value_str + ");"
+	_,err := d.DB.Query(cmd)
+	if err != nil{
+		fmt.Println("MYSQL Create:",err)
+		return err
 	}
 	return nil
 }
@@ -118,4 +146,16 @@ func (d *Database) Clear(table string) error{
 		return err
 	}
 	return nil
+}
+
+func (d *Database) Search(key string) error{
+	return nil
+}
+
+func (d *Database) Drop(table string){
+	cmd := "drop table " + table + ";"
+	_,err := d.DB.Query(cmd)
+	if err != nil{
+		fmt.Println(err)
+	}
 }
