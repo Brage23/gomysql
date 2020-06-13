@@ -59,11 +59,8 @@ func (d *Database) Create(table string,values []string) error{
 	if len(values) == 0{
 		return fmt.Errorf("values is none")
 	}
-	var value_str string
-	for _,value := range values{
-		value_str += (value + ",")
-	}
-	value_str = value_str[:len(value_str)-1]
+
+	value_str := str_merge(values)
 	cmd := "create table " + table + "(" + value_str + ") CHARSET=utf8;"
 	_,err := d.DB.Query(cmd)
 	if err != nil{
@@ -163,7 +160,7 @@ func (d *Database) Clear(table string) error{
 	return nil
 }
 
-func (d *Database) Search(table string,st reflect.Value) (error,[]interface{}){
+func (d *Database) Search(table string,st reflect.Value,where string) (error,[]interface{}){
 	Val := st.Elem()
 	if Val.Kind() != reflect.Struct{
 		return fmt.Errorf("search type is not point"),nil
@@ -182,7 +179,7 @@ func (d *Database) Search(table string,st reflect.Value) (error,[]interface{}){
 	}
 	ret := str_merge(search)
 
-	cmd := "select " + ret + " from " + table + ";"
+	cmd := "select " + ret + " from " + table + " " + where + " ;"
 	rows,err := d.DB.Query(cmd)
 	if err != nil{
 		fmt.Println("MYSQL Search:",err)
