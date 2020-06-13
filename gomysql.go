@@ -5,11 +5,26 @@ import (
 	"fmt"
 	"database/sql"
 	"sync"
+	"reflect"
 )
 
 type Database struct{
 	DB *sql.DB
 	Mutex sync.RWMutex
+}
+
+/*private function for gomysql*/
+func str_merge(str []string) string{
+	var ret string
+	if len(str) == 0{
+		panic("str_merge failed")
+	}
+
+	for _,s := range str{
+		ret += (s + ",")
+	}
+	ret = ret[:len(ret)-1]
+	return ret
 }
 
 func NewDB() *Database{
@@ -49,7 +64,7 @@ func (d *Database) Create(table string,values []string) error{
 		value_str += (value + ",")
 	}
 	value_str = value_str[:len(value_str)-1]
-	cmd := "create table " + table + "(" + value_str + ");"
+	cmd := "create table " + table + "(" + value_str + ") CHARSET=utf8;"
 	_,err := d.DB.Query(cmd)
 	if err != nil{
 		fmt.Println("MYSQL Create:",err)
@@ -148,8 +163,54 @@ func (d *Database) Clear(table string) error{
 	return nil
 }
 
-func (d *Database) Search(key string) error{
-	return nil
+func (d *Database) Search(table string,st reflect.Value) (error,[]interface{}){
+	Val := st.Elem()
+	if Val.Kind() != reflect.Struct{
+		return fmt.Errorf("search type is not point"),nil
+	}
+	var search []string
+	Type := st.Elem().Type()
+	for i := 0;i<Type.NumField();i++{
+		v := Type.Field(i)
+		tag,valid := v.Tag.Lookup("item")
+		if valid == true{
+			search = append(search,tag)
+		}
+	}
+	if len(search) == 0{
+		return fmt.Errorf("cannot find any tag"),nil
+	}
+	ret := str_merge(search)
+
+	cmd := "select " + ret + " from " + table + ";"
+	rows,err := d.DB.Query(cmd)
+	if err != nil{
+		fmt.Println("MYSQL Search:",err)
+		return err,nil
+	}	
+
+	var ans []interface{}
+	
+	for rows.Next(){
+		var sqlPtr []interface{}
+		for i := 0;i<Type.NumField();i++{
+			v := Type.Field(i)
+			_,valid := v.Tag.Lookup("item")
+			if valid == true{
+				sqlPtr = append(sqlPtr,Val.Field(i).Addr().Interface())
+			}
+			
+		}
+		err := rows.Scan(sqlPtr...)
+		if err != nil{
+			fmt.Println(err)
+			return err,nil
+		}
+
+		item := Val.Interface()
+		ans = append(ans,item)
+	}
+	return nil,ans
 }
 
 func (d *Database) Drop(table string){
