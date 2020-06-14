@@ -32,11 +32,23 @@ func NewDB() *Database{
 	return db
 }
 
-func (d *Database) Connect(database string) error{
+func (d *Database) Connect(database string,opts ...ConnFunc) error{
 	var err error
 	d.Mutex.Lock()
 	defer d.Mutex.Unlock()
-	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8", USER, PWD, HOST, PORT, database)
+
+	opt := ConnOpt{
+		Charset : "",
+	}
+	for _,fun := range opts{
+		fun(&opt)
+	}
+
+	dbDSN := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", USER, PWD, HOST, PORT, database)
+
+	if len(opt.Charset) != 0{
+		dbDSN = dbDSN + "?charset=" + opt.Charset
+	}
 	d.DB, err = sql.Open("mysql", dbDSN)
 	if err != nil {
         fmt.Println("MYSQL CONNECT: " + dbDSN)
@@ -160,7 +172,10 @@ func (d *Database) Clear(table string) error{
 	return nil
 }
 
-func (d *Database) Search(table string,st reflect.Value,where string) (error,[]interface{}){
+func (d *Database) Search(table string,st reflect.Value,opts ...SearchFunc) (error,[]interface{}){
+	d.Mutex.RLock()
+	defer d.Mutex.RUnlock()
+
 	Val := st.Elem()
 	if Val.Kind() != reflect.Struct{
 		return fmt.Errorf("search type is not point"),nil
@@ -179,7 +194,22 @@ func (d *Database) Search(table string,st reflect.Value,where string) (error,[]i
 	}
 	ret := str_merge(search)
 
-	cmd := "select " + ret + " from " + table + " " + where + " ;"
+	opt := SearchOpt{
+		Where : "",
+	}
+	for _,fun := range opts{
+		fun(&opt)
+	}
+	cmd := "select " + ret + " from " + table
+	if len(opt.Where) != 0 {
+		cmd = cmd + " where " + opt.Where
+	} 
+
+	if len(opt.Order) != 0{
+		cmd = cmd + " ORDER BY " + opt.Order
+	}
+	cmd = cmd + ";"
+
 	rows,err := d.DB.Query(cmd)
 	if err != nil{
 		fmt.Println("MYSQL Search:",err)

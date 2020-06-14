@@ -27,7 +27,7 @@ var UnitTest2 = []Search{
 func TestMysql(t *testing.T){
 	//1.connect to the sql
 	db := NewDB()
-	err := db.Connect("test")
+	err := db.Connect("test",WithCharset("utf8"))
 	if err != nil{
 		t.Errorf("step1:Mysql connect failed!")
 		return
@@ -53,7 +53,7 @@ func TestMysql(t *testing.T){
 
 	//4.get information from sql 
 	s := Search{}
-	err,datas := db.Search(table,reflect.ValueOf(&s),"")
+	err,datas := db.Search(table,reflect.ValueOf(&s))
 
 	if err != nil{
 		t.Errorf("step4:Mysql search failed!")
@@ -87,13 +87,18 @@ func TestMysql(t *testing.T){
 	}
 
 	//6.search information by ID = 4
-	err,datas = db.Search(table,reflect.ValueOf(&s),"where id = 4")
+	err,datas = db.Search(table,reflect.ValueOf(&s),WithWhere("id = 4"))
 
 	if err != nil{
 		t.Errorf("step6:Mysql search failed!")
 		return		
 	}
 
+	if len(datas) != 3{
+		fmt.Println(len(datas))
+		t.Errorf("step6:Mysql search number failed!")
+		return		
+	}
 	for _,data := range datas{
 		d,ok := data.(Search)
 		if ok == false{
@@ -109,5 +114,26 @@ func TestMysql(t *testing.T){
 			t.Errorf("step6:Get Error Number")
 			return	
 		}
+	}
+
+	type SearchName struct{
+		Name string `item:"name"`
+	}
+
+	//7.search information by ID > 4 and order by DESC
+	search_name := SearchName{}
+	err,datas = db.Search(table,reflect.ValueOf(&search_name),WithWhere("id > 4"),WithOrder("id DESC"))
+	if err != nil{
+		t.Errorf("step7:Mysql search failed!")
+		return		
+	}
+	if len(datas)!=2{
+		fmt.Println(len(datas))
+		t.Errorf("step7:Mysql search number failed!")
+		return	
+	}
+	if datas[0].(SearchName).Name != "小钱" || datas[1].(SearchName).Name != "小王"{
+		t.Errorf("step7:Search Error")
+		return	
 	}
 }
