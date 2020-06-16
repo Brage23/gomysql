@@ -13,20 +13,6 @@ type Database struct{
 	Mutex sync.RWMutex
 }
 
-/*private function for gomysql*/
-func str_merge(str []string) string{
-	var ret string
-	if len(str) == 0{
-		panic("str_merge failed")
-	}
-
-	for _,s := range str{
-		ret += (s + ",")
-	}
-	ret = ret[:len(ret)-1]
-	return ret
-}
-
 func NewDB() *Database{
 	db := &Database{}
 	return db
@@ -72,7 +58,7 @@ func (d *Database) Create(table string,values []string) error{
 		return fmt.Errorf("values is none")
 	}
 
-	value_str := str_merge(values)
+	value_str := StringMerge(values)
 	cmd := "create table " + table + "(" + value_str + ") CHARSET=utf8;"
 	_,err := d.DB.Query(cmd)
 	if err != nil{
@@ -120,34 +106,18 @@ func(d *Database) InsertRows(table string,keys []string,values [][]string) error
 		return fmt.Errorf("table name is none")
 	}
 
-	var key_str string
-	var value_s_str string
-	for _,key := range keys{
-		key_str += (key + ",")
-	}
-	key_str = key_str[:len(key_str)-1]
-	key_str = "(" + key_str + ")"
+	key_str := ParenPackage(StringMerge(keys))
 
+	var values_list []string
 	for _,avalue := range values{
-		var value_str string
 		if len(avalue) > len(keys){
 			fmt.Println("MYSQL too many values")
 			panic(1)
 		}
-		for _,value := range avalue{
-			if len(value) == 0{
-				value_str += "NULL,"
-			} else{
-				value_str += (value + ",")
-			}
-		}
-		value_str = value_str[:len(value_str)-1]
-		value_str = "(" + value_str + ")"
-
-		value_s_str += (value_str + ",")
+		value_str := ParenPackage(StringMerge(avalue))
+		values_list = append(values_list,value_str)
 	}
-
-	value_s_str = value_s_str[:len(value_s_str)-1]
+	value_s_str := StringMerge(values_list)
 	cmd := "insert into " + table + " " + key_str + " values " + value_s_str + ";"
 	_,err := d.DB.Query(cmd)
 	if err != nil{
@@ -192,10 +162,11 @@ func (d *Database) Search(table string,st reflect.Value,opts ...SearchFunc) (err
 	if len(search) == 0{
 		return fmt.Errorf("cannot find any tag"),nil
 	}
-	ret := str_merge(search)
+	ret := StringMerge(search)
 
 	opt := SearchOpt{
 		Where : "",
+		Order : "",
 	}
 	for _,fun := range opts{
 		fun(&opt)
